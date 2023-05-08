@@ -1,6 +1,6 @@
 ---
 title: "Assignment 4"
-author: "Jillian Allison, Erica Bishop, Hailey Viers"
+author: "Jillian Allison, Erica Bishop, Hailey Veirs"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -11,6 +11,8 @@ library(sensitivity)
 library(tidyverse)
 library(lhs)
 library(purrr)
+library(ggpubr)
+library(viridis)
 
 ```
 
@@ -19,7 +21,7 @@ source("Catm-1.R")
 
 ```
 
-## Latin Hypercube Sensitivity Analysis
+## (a) Latin Hypercube Sensitivity Analysis
 
 ```{r parameter distribution}
 
@@ -40,7 +42,7 @@ parm_quant <- randomLHS(nsample, npar)
 colnames(parm_quant)=pnames #set column names with parameter names
 
 #create a dataframe out of the hyercube
-parm <- as.data.frame(matrix(nrow=nrow(parm_quant), ncol=ncol(parm_quant)))
+parm <- as_data_frame(matrix(nrow=nrow(parm_quant), ncol=ncol(parm_quant)))
 colnames(parm) <- pnames #set column names to parameter names
 
 # set constraints for parameter distributions
@@ -70,6 +72,8 @@ parm[,"v"] <- qnorm(parm_quant[,"v"],
 head(parm)
 
 ```
+## (b) Run model over parameters
+
 ```{r run function}
 
 #use pmap to run functon across our hypercube of parameters
@@ -77,12 +81,110 @@ head(parm)
 conductance <- parm %>% 
   pmap(Catm) #zm already set as default to 200cm
 
+
 #check out results
 head(conductance)
 
 #turn it into a dataframe
-conductancedf <- conductance %>% 
-  ('[', c("Ca"))
+conductance_df <- data.frame(conductance = unlist(conductance,
+                                                  use.names = FALSE)) %>% 
+  cbind(parm)
 
 ```
+
+## (c) Plot conductance accounting for uncertainty
+
+```{r plot conductance}
+
+
+ggplot(
+  data = conductance_df,
+  aes(x = conductance)
+) +
+  geom_density(color = "yellow",
+               size = 1,
+               fill = "lemonchiffon") +
+  theme_minimal() +
+  labs(
+    x = "Conductance (mm/s)",
+    y = "Density",
+    title = "Ca Model Conductance (mm/s)"
+  )
+
+
+```
+
+
+## (d) Plot conductance estimates against parameters
+
+```{r plot uncertainty}
+
+height_plot <-  ggplot(
+  data = conductance_df,
+  aes(x = height,
+      y = conductance,
+      col = height)
+) +
+  geom_point() +
+  labs(
+    title = "Atmospheric Conductance Sensitivity Analysis"
+  ) +
+  theme_minimal()
+
+ko_plot <- ggplot(
+  data = conductance_df,
+  aes(x = k_o,
+      y = conductance,
+      col = k_o)
+) +
+  geom_point() +
+  scale_color_viridis_c(option = "magma") +
+  theme_minimal()
+
+kd_plot <- ggplot(
+  data = conductance_df,
+  aes(x = k_d,
+      y = conductance,
+      col = k_d)
+) +
+  geom_point() +
+  scale_color_viridis_c(option = "viridis") +
+  theme_minimal()
+
+v_plot <- ggplot(
+  data = conductance_df,
+  aes(x = v,
+      y = conductance,
+      col = v)
+) +
+  geom_point() +
+  theme_minimal()
+
+ggarrange(height_plot, ko_plot, kd_plot, v_plot)
+
+
+
+```
+## (e) Estimate partial rank correlation coefficients 
+
+```{r pcc}
+
+#calculate partial correlation coefficients, ranking them
+ca_result <- pcc(parm, conductance_df$conductance, rank = TRUE)
+
+#plot
+plot(ca_result)
+
+#make a table of ranked partial correlation coefficients
+ca_result
+
+
+```
+## (f) Interpret results
+
+In looking at the results from our sensitivity analysis, wind speed is the parameter that has the strongest relationship with conductance, so the model is the most sensitive to changes in windspeed. In analysis of atmospheric conductance, we may want to control for or adjust for wind speed and any confounding variables. Height also had a relatively high partial rank correlation coefficient, so we'd also want to control for and adjust for that variable in further analysis. 
+
+Based on these results, we can infer that higher windspeeds will create greater atmospheric conductance. Greater atmospheric conductance increases plant water usage. It's tough to say on a global scale how wind speeds will change with climate change, but in areas where climate change is linked to increased wind speeds, we can expect to see plant water usage increasing. 
+
+
 
