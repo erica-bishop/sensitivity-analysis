@@ -5,26 +5,84 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r libraries, message=FALSE}
+
+library(sensitivity)
+library(tidyverse)
+library(lhs)
+library(purrr)
+
 ```
 
-## R Markdown
+```{r source function}
+source("Catm-1.R")
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+## Latin Hypercube Sensitivity Analysis
 
-You can also embed plots, for example:
+```{r parameter distribution}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+#set seed
+set.seed(123)
+
+#number of samples
+nsample <- 100
+
+# which parameters
+pnames <- c("height", "k_d", "k_o", "v")
+
+# how many parameters
+npar <- length(pnames)
+
+#create cube of parameter space
+parm_quant <- randomLHS(nsample, npar)
+colnames(parm_quant)=pnames #set column names with parameter names
+
+#create a dataframe out of the hyercube
+parm <- as.data.frame(matrix(nrow=nrow(parm_quant), ncol=ncol(parm_quant)))
+colnames(parm) <- pnames #set column names to parameter names
+
+# set constraints for parameter distributions
+
+#vegetation height distribution
+parm[,"height"] <- runif(parm_quant[,"height"],
+                         min = 9.5,
+                         max = 10.5)
+
+#percent variation for kd and ko
+pvar <- 0.01
+
+#kd and k0 distributions
+parm[,"k_d"] <- qnorm(parm_quant[,"k_d"],
+                     mean = 0.7,
+                     sd = 0.7*pvar)
+parm[,"k_o"] <- qnorm(parm_quant[,"k_o"],
+                     mean = 0.1,
+                     sd = 0.1*pvar)
+
+#distribution for windspeed (v)
+parm[,"v"] <- qnorm(parm_quant[,"v"],
+                    mean = 250,
+                    sd = 30)
+
+#check out our data frame of possible parameter values
+head(parm)
+
+```
+```{r run function}
+
+#use pmap to run functon across our hypercube of parameters
+
+conductance <- parm %>% 
+  pmap(Catm) #zm already set as default to 200cm
+
+#check out results
+head(conductance)
+
+#turn it into a dataframe
+conductancedf <- conductance %>% 
+  ('[', c("Ca"))
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
